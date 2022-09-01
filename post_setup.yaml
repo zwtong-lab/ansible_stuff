@@ -1,0 +1,116 @@
+---
+## Run keycopy for no password login first
+
+- hosts: nohcws
+  become: yes
+  vars:
+    - username: dtas-dev
+    - home: home
+
+  tasks:
+    - name: Install sshpass
+      ansible.builtin.apt:
+        name: sshpass
+      register: aptout
+    - debug: var=aptout
+
+    - name: Validate the sudoers file before saving
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        state: present
+        # regexp: '^$USER  ALL='
+        line: 'dtas-dev ALL=(ALL) NOPASSWD: ALL'
+        validate: /usr/sbin/visudo -cf %s
+      register: lineinfile
+    - debug: var=lineinfile
+
+    - debug:
+
+    - name: Check replacing linefor grub before making the change
+      ansible.builtin.replace:
+        path: /etc/default/grub
+        regexp: '^GRUB_CMDLINE_LINUX=""$'
+        replace: 'GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0"'
+        backup: yes
+
+    - debug:
+
+    - name: Disable USB Autosuspend
+      ansible.builtin.lineinfile:
+        path: /etc/default/grub
+        regexp: '^GRUB_CMDLINE_LINUX_DEFAULT="'
+        insertafter: '^#GRUB_CMDLINE_LINUX_DEFAULT="'
+        line: GRUB_CMDLINE_LINUX_DEFAULT="usbcore.autosuspend=-1 quiet splash"
+
+    - debug:
+
+    - name: Update grub
+      ansible.builtin.command:
+        cmd: >
+          grub-mkconfig -o /boot/grub/grub.cfg
+      register: commandout
+    - debug: var=commandout
+
+    # - name: reboot the host
+    #   shell: "sleep 5 && reboot"
+    #   async: 1
+    #   poll: 0
+
+    # - debug:
+
+
+    # - name: wait for the reboot and reconnect
+    #   wait_for:
+    #     port: 22
+    #     host: '{{ (ansible_ssh_host|default(ansible_host))|default(inventory_hostname) }}'
+    #     search_regex: OpenSSH
+    #     delay: 10
+    #     timeout: 300
+    #   connection: local
+
+    # - debug:
+
+    - name: Check the Uptime of the servers
+      shell: "uptime"
+      register: Uptime
+
+    - debug: var=Uptime
+
+
+    - name: Copy keytab generator
+      ansible.builtin.copy:
+        src: /home/ANT.AMAZON.COM/zhiwtong/Documents/keytab_gen
+        dest: /home/ANT.AMAZON.COM/dtas-dev/keytab_gen
+
+    - debug:
+
+
+    - name: Run Keytab Generator
+      shell: "bash /home/ANT.AMAZON.COM/dtas-dev/keytab_gen"      
+    
+    - debug:
+
+    - name: Remove Keytab Generator
+      shell: " rm /home/ANT.AMAZON.COM/dtas-dev/keytab_gen"
+
+    - name: Run kinit once
+      shell: "kinit -t dtas-dev.keytab dtas-dev@ANT.AMAZON.COM"
+      register: cmd
+    
+    - debug: 
+        var: cmd
+        verbosity: 4
+
+    - name: Kinit Cronjob
+      ansible.builtin.cron:
+        name: "renew kinit"
+        user: "dtas-dev"
+        state: present
+        minute: "*"
+        hour: "*/4"
+        day: "*"
+        month: "*"
+        weekday: "*"
+        job: '/usr/bin/kinit -t ~/dtas-dev.keytab dtas-dev@ANT.AMAZON.COM'
+
+    - debug:

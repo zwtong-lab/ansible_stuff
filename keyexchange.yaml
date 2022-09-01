@@ -1,0 +1,26 @@
+---
+- name: Exchage Keys between Destop and the Lab Hosts
+  become: yes
+  user: dtas-dev
+  hosts: sjc26hosts
+  tasks:
+    # - name: make directory
+    #   file:
+    #     path: "/home/ANT.AMAZON.COM/dtas-dev/.ssh"
+    #     state: directory
+    # - name: create empty file
+    #   file: 
+    #     path: "/home/ANT.AMAZON.COM/dtas-dev/.ssh/authorized_key"
+    #     state: touch
+    # - name:
+    #   lineinfile:
+    #     path: "/home/ANT.AMAZON.COM/dtas-dev/.ssh/authorized_key"
+    #     line: "{{ pubkey }}"
+    - name: 
+      authorized_key:
+        user: dtas-dev
+        state: present
+        key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_rsa.pub') }}"
+    
+
+## usage: ansible-playbook keyexchange.yaml -i sjc26hosts -b -k -u dtas-dev
